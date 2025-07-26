@@ -123,17 +123,34 @@ public class ExportAuxiliaryUtils {
     public static boolean deleteDirectory(File dir) {
         if (dir == null || !dir.exists()) return false;
 
+        boolean allDeleted = true;
+
         File[] files = dir.listFiles();
         if (files != null) {
             for (File file : files) {
+                boolean success;
                 if (file.isDirectory()) {
-                    deleteDirectory(file); // 递归删除子目录
+                    success = deleteDirectory(file); // 递归
                 } else {
-                    file.delete();         // 删除文件
+                    success = file.delete();
+                    if (!success) {
+                        log.error("文件无法删除（可能正在被占用）: {}", file.getAbsolutePath());
+                    }
+                }
+
+                if (!success) {
+                    allDeleted = false;
                 }
             }
         }
 
-        return dir.delete(); // 最后删除空目录自身
+        boolean dirDeleted = dir.delete();
+        if (!dirDeleted) {
+            log.error("目录删除失败: {}", dir.getAbsolutePath());
+            allDeleted = false;
+        }
+
+        return allDeleted;
     }
+
 }

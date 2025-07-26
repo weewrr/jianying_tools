@@ -23,4 +23,5 @@ public class DtoPath {
 
     private double volume;//音频素材音量
     private String projectName;//项目名称
+    private boolean VideoExport;//草稿/视频
 }

@@ -36,7 +36,8 @@ public class AutoEditDragUI extends JFrame {
         dialog.setModal(true);
         dialog.setVisible(true);
     }
-
+    private boolean isVideoExport = false;
+    private JRadioButton videoBtn, draftBtn;
     public AutoEditDragUI(String projectName, String dataPath) {
         this.projectName = projectName;
         this.dataPath = dataPath;
@@ -52,25 +53,43 @@ public class AutoEditDragUI extends JFrame {
         centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
         centerPanel.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
 
-        // 项目名 + 导出数量
+        // ========== 顶部项目名 / 导出数量 / 导出类型 ==========
         JPanel topRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5));
         nameField = new JTextField(projectName, 20);
         countField = new JTextField("1", 5);
-        topRow.add(new JLabel("项目名:"));
+
+        JLabel nameLabel = new JLabel("项目名:");
+        JLabel countLabel = new JLabel("导出数量:");
+
+        // 导出类型按钮组
+        videoBtn = new JRadioButton("视频", true);
+        draftBtn = new JRadioButton("草稿", false);
+        ButtonGroup exportTypeGroup = new ButtonGroup();
+        exportTypeGroup.add(videoBtn);
+        exportTypeGroup.add(draftBtn);
+
+        // 监听选择
+        videoBtn.addActionListener(e -> isVideoExport = true);
+        draftBtn.addActionListener(e -> isVideoExport = false);
+
+        topRow.add(nameLabel);
         topRow.add(nameField);
         topRow.add(Box.createHorizontalStrut(20));
-        topRow.add(new JLabel("导出数量:"));
+        topRow.add(countLabel);
         topRow.add(countField);
+        topRow.add(Box.createHorizontalStrut(20));
+        topRow.add(videoBtn);
+        topRow.add(draftBtn);
+
         centerPanel.add(topRow);
 
-        // 滑块区域
+        // ========== 后续滑块/拖拽/按钮等保持不变 ==========
         centerPanel.add(createSliderPanel("变速最小值 (x)", speedMinSlider = createSlider(0, 1000, 10)));
         centerPanel.add(createSliderPanel("变速最大值 (x)", speedMaxSlider = createSlider(0, 1000, 10)));
         centerPanel.add(createSliderPanel("截取起始 (%)", trimStartSlider = createSlider(0, 100, 0)));
         centerPanel.add(createSliderPanel("截取结束 (%)", trimEndSlider = createSlider(0, 100, 100)));
         centerPanel.add(createSliderPanel("音量 (dB)", volumeSlider = createSlider(-60, 20, 0)));
 
-        // 拖拽区域
         String[] labels = {"字幕", "配音", "模板", "视频素材集合", "音频素材集合", "开头素材集合"};
         boolean[] isFile = {true, true, true, false, false, false};
         JPanel dragGrid = new JPanel(new GridLayout(2, 3, 10, 10));
@@ -88,7 +107,6 @@ public class AutoEditDragUI extends JFrame {
         centerPanel.add(Box.createVerticalStrut(10));
         centerPanel.add(dragGrid);
 
-        // 按钮区
         JPanel btnPanel = new JPanel();
         JButton cancelBtn = new JButton("取消");
         JButton startBtn = new JButton("开始");
@@ -109,6 +127,15 @@ public class AutoEditDragUI extends JFrame {
         initFromConfig();
         setVisible(true);
     }
+    private void updateExportTypeUI() {
+        videoBtn.setSelected(isVideoExport);
+        draftBtn.setSelected(!isVideoExport);
+    }
+
+    private boolean getIsVideoExport() {
+        return isVideoExport;
+    }
+
 
     private void bindTemplateSelector(JPanel dragGrid) {
         Component comp = dragGrid.getComponent(2);
@@ -141,6 +168,7 @@ public class AutoEditDragUI extends JFrame {
     private void handleExport() {
         try {
             int count = Math.max(1, Integer.parseInt(countField.getText().trim()));
+            if (count > 50) count = 50;
             String baseName = nameField.getText().trim();
             if (baseName.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "项目名不能为空", "错误", JOptionPane.ERROR_MESSAGE);
@@ -155,8 +183,9 @@ public class AutoEditDragUI extends JFrame {
 
                 long start = System.nanoTime();
                 Main.app(dtoPath);
-                Main.autoExport(dtoPath.getProjectName());
-                elapsed = (System.nanoTime() - start) / 1e9;
+                if (getIsVideoExport())
+                    Main.autoExport(dtoPath.getProjectName());
+                elapsed += (System.nanoTime() - start) / 1e9;
                 log.info("第{}个项目（{}）运行完成，用时{}秒", i, projectName, elapsed);
             }
             showGlobalTopDialog(String.format("运行成功！用时 %.2f 秒", elapsed), "完成提示");
@@ -263,6 +292,8 @@ public class AutoEditDragUI extends JFrame {
         volumeSlider.setValue((int) config.getVolume());
         countField.setText(String.valueOf(config.getExportQuantity()));
         nameField.setText(config.getProjectName());
+        this.isVideoExport = config.isVideoExport();
+        updateExportTypeUI();
 
         Map<String, String> labelToPath = Map.of(
                 "字幕", config.getTextPath(),
@@ -297,6 +328,7 @@ public class AutoEditDragUI extends JFrame {
         dto.setCutEnd(trimEndSlider.getValue());
         dto.setVolume(volumeSlider.getValue());
         dto.setExportQuantity(Math.max(1, Integer.parseInt(countField.getText().trim())));
+        dto.setVideoExport(getIsVideoExport());
 
         dropBoxMap.forEach((label, file) -> {
             if (file == null) return;

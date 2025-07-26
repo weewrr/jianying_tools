@@ -123,6 +123,13 @@ public class ToolCategoryImpl implements ToolCategory {
         return Math.round(value * 10.0) / 10.0;
     }
 
+    @Override
+    public long getRandomLong(long min, long max) {
+        if (min > max)
+            throw new IllegalArgumentException("最小值不能大于最大值");
+        return ThreadLocalRandom.current().nextLong(min, max);
+    }
+
     /**
      * 获取随机整数
      * @param min

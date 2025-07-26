@@ -34,6 +34,8 @@ public interface ToolCategory {
      */
     double getRandomDouble(double min, double max);
 
+    long getRandomLong(long min, long max);
+
     /**
      * 生成指定范围内的随机数[min, max]
      * @param min

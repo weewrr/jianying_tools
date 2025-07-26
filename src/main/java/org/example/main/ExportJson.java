@@ -1,5 +1,6 @@
 package org.example.main;
 
+import lombok.extern.slf4j.Slf4j;
 import org.example.pojo.dto.DtoVodeosData;
 import org.example.pojo.texts.Subtitle;
 import org.example.pojo.texts.Text;
@@ -20,6 +21,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class ExportJson {
 
     /**
@@ -36,21 +38,25 @@ public class ExportJson {
         List<Speeds> speeds = new ArrayList<>();
 
         long startSum = 0;
-        List<Path> paths = toolCategory.getAllFilesUnder(dtoVodeosData.getMaterialCollection());
-        if (paths.isEmpty()) return new VoVideosList(segments, videos, speeds);
+        long totalDuration = dtoVodeosData.getZongDuration(); // 目标总时长（单位：微秒）
 
-        Set<Path> usedPaths = new HashSet<>();
-        int maxAttempts = paths.size() * 3; // 更宽松防止误杀
-        int attempts = 0;
+        List<Path> startPaths = toolCategory.getAllFilesUnder(dtoVodeosData.getStartPath()); // 开头素材
+        List<Path> paths = toolCategory.getAllFilesUnder(dtoVodeosData.getMaterialCollection()); // 主体素材
 
-        while (startSum < dtoVodeosData.getZongDuration() && attempts++ < maxAttempts) {
-            Path path = getNextAvailablePath(paths, usedPaths, toolCategory);
+        // ========== 处理开头素材（30–40秒） ==========
+        long headTarget = toolCategory.getRandomLong(30_000_000L, 40_000_000L); // 微秒
+        long headSum = 0;
+        Set<Path> usedHeadPaths = new HashSet<>();
+        int headAttempts = startPaths.size() * 3;
+
+        while (headSum < headTarget && headAttempts-- > 0) {
+            Path path = getNextAvailablePath(startPaths, usedHeadPaths, toolCategory);
             if (path == null) break;
 
             long duration = toolCategory.GetVideoLength(path.toString());
             if (duration <= 0) continue;
 
-            // 截取时长调整
+            // 裁剪处理
             if (dtoVodeosData.getCutStart() != 0 || dtoVodeosData.getCutEnd() != 100) {
                 double ratio = toolCategory.getRandomDouble(dtoVodeosData.getCutStart(), dtoVodeosData.getCutEnd());
                 duration = (long) (duration * (ratio / 100));
@@ -64,7 +70,54 @@ public class ExportJson {
 
             Speeds speedSegment = majorFunction.getSpeeds(speed);
             long clipDuration = (long) (duration / speed);
-            long remain = dtoVodeosData.getZongDuration() - startSum;
+            long remain = headTarget - headSum;
+
+            if (clipDuration > remain) {
+                clipDuration = remain;
+                duration = (long) (clipDuration * speed);
+            }
+            if (clipDuration <= 0) break;
+
+            Material material = majorFunction.setMaterial(path.toString(), "video");
+            VoSegments vs = new VoSegments(speed, duration, clipDuration, 0, startSum, material.getId(), 0, 0);
+            VideoSegment segment = majorFunction.getSegments(vs, speedSegment.getId());
+
+            segments.add(segment);
+            videos.add(OperateJson.exportToJson(material));
+            speeds.add(speedSegment);
+
+            headSum += clipDuration;
+            startSum += clipDuration;
+        }
+
+        // ========== 处理主体素材 ==========
+        if (paths.isEmpty()) return new VoVideosList(segments, videos, speeds);
+
+        Set<Path> usedPaths = new HashSet<>();
+        int attempts = paths.size() * 3;
+
+        while (startSum < totalDuration && attempts-- > 0) {
+            Path path = getNextAvailablePath(paths, usedPaths, toolCategory);
+            if (path == null) break;
+
+            long duration = toolCategory.GetVideoLength(path.toString());
+            if (duration <= 0) continue;
+
+            // 裁剪
+            if (dtoVodeosData.getCutStart() != 0 || dtoVodeosData.getCutEnd() != 100) {
+                double ratio = toolCategory.getRandomDouble(dtoVodeosData.getCutStart(), dtoVodeosData.getCutEnd());
+                duration = (long) (duration * (ratio / 100));
+            }
+
+            // 变速
+            float speed = 1.0f;
+            if (dtoVodeosData.getShiftStart() < dtoVodeosData.getShiftEnd()) {
+                speed = (float) toolCategory.getRandomDouble(dtoVodeosData.getShiftStart(), dtoVodeosData.getShiftEnd());
+            }
+
+            Speeds speedSegment = majorFunction.getSpeeds(speed);
+            long clipDuration = (long) (duration / speed);
+            long remain = totalDuration - startSum;
 
             if (clipDuration > remain) {
                 clipDuration = remain;
@@ -83,9 +136,9 @@ public class ExportJson {
             startSum += clipDuration;
         }
 
-        // return 保证数据完整，释放资源交由 GC
         return new VoVideosList(segments, videos, speeds);
     }
+
 
     private Path getNextAvailablePath(List<Path> paths, Set<Path> usedPaths, ToolCategory toolCategory) {
         List<Path> available = paths.stream()

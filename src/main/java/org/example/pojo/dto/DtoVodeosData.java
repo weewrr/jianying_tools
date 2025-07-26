@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class DtoVodeosData {
     private String materialCollection;//素材集合路径
+    private String startPath;//开头素材路径
     private double shiftStart; //变速最小速度
     private double shiftEnd; //变速最大速度
     private int cutStart; //随机截取视频片段的最小

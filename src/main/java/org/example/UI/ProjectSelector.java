@@ -22,16 +22,33 @@ public class ProjectSelector extends JFrame {
         ImageIcon icon = new ImageIcon("ico/UI_ico.png");
         setIconImage(icon.getImage());
 
-        // 顶部：开始创作按钮
-        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, GAP, 40));
-        topPanel.setPreferredSize(new Dimension(getWidth(), getHeight() / 4));
+        // ====================== 顶部容器 ======================
+        JPanel topContainer = new JPanel(new BorderLayout());
+        topContainer.setPreferredSize(new Dimension(getWidth(), getHeight() / 4));
+
+        // 中间按钮：开始创作
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, GAP, 0));
         JButton createBtn = new JButton("开始创作");
         createBtn.setFont(new Font("微软雅黑", Font.BOLD, 22));
         createBtn.setPreferredSize(new Dimension(200, 50));
         createBtn.addActionListener(e -> showInputDialog());
         topPanel.add(createBtn);
 
-        // 中部：项目卡片区（带滚动）
+        // 右上角按钮：设置
+        JButton settingsBtn = new JButton("设置");
+        settingsBtn.setFont(new Font("微软雅黑", Font.PLAIN, 14)); // 字号大点
+        settingsBtn.setPreferredSize(new Dimension(40, 40));
+        settingsBtn.setMargin(new Insets(0, 0, 0, 0));
+        settingsBtn.addActionListener(e -> new SettingsDialog(this));
+
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, GAP, 8));
+        rightPanel.add(settingsBtn);
+
+        // 加入 topContainer
+        topContainer.add(rightPanel, BorderLayout.NORTH);
+        topContainer.add(topPanel, BorderLayout.CENTER);
+
+        // ====================== 中部卡片区域 ======================
         JPanel projectPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, GAP, GAP));
         JScrollPane scrollPane = new JScrollPane(projectPanel);
         scrollPane.setBorder(null);
@@ -42,7 +59,7 @@ public class ProjectSelector extends JFrame {
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 
-        // 加载本地 .yml 文件并生成卡片
+        // 加载本地 YAML 项目文件
         File projectDir = new File(PROJECT_DIR);
         if (!projectDir.exists()) projectDir.mkdirs();
 
@@ -58,11 +75,13 @@ public class ProjectSelector extends JFrame {
             }
         }
 
-        // 页面布局组合
-        add(topPanel, BorderLayout.NORTH);
+        // ====================== 页面布局组合 ======================
+        add(topContainer, BorderLayout.NORTH);
         add(scrollPane, BorderLayout.CENTER);
+
         setVisible(true);
     }
+
 
     // 弹窗输入新项目名
     private void showInputDialog() {

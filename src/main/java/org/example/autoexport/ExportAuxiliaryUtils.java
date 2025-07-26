@@ -1,18 +1,13 @@
 package org.example.autoexport;
 
-import com.sun.jna.Native;
+import com.sun.jna.platform.win32.WinDef.RECT;
 import com.sun.jna.platform.win32.*;
-import com.sun.jna.platform.win32.Psapi;
 import com.sun.jna.platform.win32.WinDef.HWND;
 import com.sun.jna.ptr.IntByReference;
 import lombok.extern.slf4j.Slf4j;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.*;
+import java.util.Properties;
 
 @Slf4j
 public class ExportAuxiliaryUtils {
@@ -60,22 +55,85 @@ public class ExportAuxiliaryUtils {
         return null;
     }
 
+    private static RECT lastRect = null;
+    public static boolean hasWindowSizeChanged(HWND hwnd) {
+        if (hwnd == null) return false;
+
+        RECT currentRect = new RECT();
+        User32.INSTANCE.GetWindowRect(hwnd, currentRect);
+
+        if (lastRect == null) {
+            lastRect = new RECT();
+            lastRect.left = currentRect.left;
+            lastRect.top = currentRect.top;
+            lastRect.right = currentRect.right;
+            lastRect.bottom = currentRect.bottom;
+            return false; // 第一次检查，认为没有变化
+        }
+
+        boolean changed = !rectEquals(lastRect, currentRect);
+        if (changed) {
+            // 更新为当前尺寸
+            lastRect.left = currentRect.left;
+            lastRect.top = currentRect.top;
+            lastRect.right = currentRect.right;
+            lastRect.bottom = currentRect.bottom;
+        }
+
+        return changed;
+    }
+    private static boolean rectEquals(RECT r1, RECT r2) {
+        return r1.left == r2.left &&
+                r1.top == r2.top &&
+                r1.right == r2.right &&
+                r1.bottom == r2.bottom;
+    }
 
     public static void restartProcessFromHwnd() throws IOException, InterruptedException {
         HWND hwnd = User32.INSTANCE.FindWindow("Qt622QWindowIcon", "剪映专业版");
-        int pid = getProcessIdFromHwnd(hwnd);
 
-        String exePath = getExePathByPid(pid);
-        Runtime.getRuntime().exec("taskkill /PID " + pid + " /F").waitFor();
-        Path newPath = Paths.get(exePath).getParent().resolve("VEDetector.exe");
-        File veDetectorFile = newPath.toFile();
-        if (veDetectorFile.exists()) {
-            veDetectorFile.delete();
+        Properties props = new Properties();
+        props.load(new FileInputStream("config.properties"));
+        String exePath = props.getProperty("exePath");
+
+        if (hwnd == null) {
+            ProcessBuilder builder = new ProcessBuilder(
+                    "cmd", "/c", "start", "\"\"", "\"" + exePath + "\""
+            );
+            builder.start();
+        } else {
+            int pid = getProcessIdFromHwnd(hwnd);
+
+            String runningExePath = getExePathByPid(pid);
+            Runtime.getRuntime().exec("taskkill /PID " + pid + " /F").waitFor();
+            ProcessBuilder builder = new ProcessBuilder(
+                    "cmd", "/c", "start", "\"\"", "\"" + runningExePath + "\""
+            );
+            builder.start();
         }
-
-        Runtime.getRuntime().exec(new String[]{
-                "cmd", "/c", "start", "\"\"", exePath
-        });
     }
 
+    public static void closeAllJianyingPro() throws Exception {
+        HWND hwnd = User32.INSTANCE.FindWindow("Qt622QWindowIcon", "剪映专业版");
+        int pid = getProcessIdFromHwnd(hwnd);
+        Runtime.getRuntime().exec("taskkill /PID " + pid + " /F").waitFor();
+    }
+
+
+    public static boolean deleteDirectory(File dir) {
+        if (dir == null || !dir.exists()) return false;
+
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    deleteDirectory(file); // 递归删除子目录
+                } else {
+                    file.delete();         // 删除文件
+                }
+            }
+        }
+
+        return dir.delete(); // 最后删除空目录自身
+    }
 }
